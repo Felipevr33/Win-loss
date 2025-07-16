@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profit/Loss Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #1a73e8;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input, select, button {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: calc(100% - 22px);
+            box-sizing: border-box;
+        }
+        select {
+            width: 100%;
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background-color: #1557b0;
+        }
+        #reset-btn {
+            width: auto;
+            padding: 10px 20px;
+            background-color: #6c757d;
+        }
+        #reset-btn:hover {
+            background-color: #5a6268;
+        }
+        #result {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            display: none;
+        }
+        #error {
+            color: red;
+            margin-top: 10px;
+            display: none;
+            text-align: center;
+        }
+        canvas {
+            max-width: 100%;
+            margin-top: 20px;
+        }
+        @media (max-width: 600px) {
+            input, select, button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Profit/Loss Calculator</h1>
+    <div class="container">
+        <div class="input-group">
+            <label for="invested">Invested Amount:</label>
+            <input type="number" id="invested" placeholder="Enter amount invested (e.g., 10000)" min="0">
+            <label for="current">Current Value:</label>
+            <input type="number" id="current" placeholder="Enter current value (e.g., 12000)" min="0">
+            <label for="currency">Currency:</label>
+            <select id="currency">
+                <option value="EUR">EUR (€)</option>
+                <option value="USD">USD ($)</option>
+                <option value="GBP">GBP (£)</option>
+                <option value="AUD">AUD (A$)</option>
+                <option value="CAD">CAD (C$)</option>
+            </select>
+        </div>
+        <button id="calculate-btn">Calculate Profit/Loss</button>
+        <button id="reset-btn">Reset</button>
+        <div id="error"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Fallback exchange rates
+        let exchangeRates = {
+            EUR: 1,
+            USD: 1.09,
+            GBP: 0.84,
+            AUD: 1.62,
+            CAD: 1.49
+        };
+
+        // Fetch exchange rates from CoinGecko
+        async function fetchExchangeRates() {
+            try {
+                const response = await fetch('https://api.coingecko.com/api/v3/exchange_rates');
+                if (!response.ok) throw new Error('API request failed');
+                const data = await response.json();
+                exchangeRates = {
+                    EUR: data.rates.eur.value,
+                    USD: data.rates.usd.value,
+                    GBP: data.rates.gbp.value,
+                    AUD: data.rates.aud.value,
+                    CAD: data.rates.cad.value
+                };
+            } catch (error) {
+                console.warn('Using fallback exchange rates:', error);
+            }
+        }
+
+        // Initialize exchange rates
+        fetchExchangeRates();
+
+        // Currency symbol helper
+        function currencySymbol(currency) {
+            const symbols = { EUR: '€', USD: '$', GBP: '£', AUD: 'A$', CAD: 'C$' };
+            return symbols[currency] || currency;
+        }
+
+        // Calculate profit/loss
+        function calculateProfitLoss() {
+            const invested = parseFloat(document.getElementById('invested').value);
+            const current = parseFloat(document.getElementById('current').value);
+            const currency = document.getElementById('currency').value;
+            const errorDiv = document.getElementById('error');
+            const resultDiv = document.getElementById('result');
+
+            if (isNaN(invested) || invested <= 0) {
+                errorDiv.textContent = 'Please enter a valid invested amount.';
+                errorDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                return;
+            }
+
+            if (isNaN(current) || current < 0) {
+                errorDiv.textContent = 'Please enter a valid current value.';
+                errorDiv.style.display = 'block';
+                resultDiv.style.display = 'none';
+                return;
+            }
+
+            // Convert to EUR base for consistency
+            const investedBase = invested / exchangeRates[currency];
+            const currentBase = current / exchangeRates[currency];
+            const profitLossBase = currentBase - investedBase;
+            const profitLoss = profitLossBase * exchangeRates[currency]; // Convert back to selected currency
+            const percentChange = (profitLossBase / investedBase) * 100;
+
+            let resultHTML = `<h3>Result (${currency}):</h3>`;
+            resultHTML += `<p><strong>Gain/Loss:</strong> ${currencySymbol(currency)}${profitLoss.toFixed(2)}</p>`;
+            resultHTML += `<p><strong>Percentage Change:</strong> ${percentChange.toFixed(2)}%</p>`;
+
+            if (profitLoss > 0) {
+                resultHTML += `<p style="color: green;">You made a profit 🎉</p>`;
+            } else if (profitLoss < 0) {
+                resultHTML += `<p style="color: red;">You have a loss</p>`;
+            } else {
+                resultHTML += `<p>No gain or loss.</p>`;
+            }
+            resultHTML += `<canvas id="profitChart" width="400" height="200"></canvas>`;
+
+            errorDiv.style.display = 'none';
+            resultDiv.innerHTML = resultHTML;
+            resultDiv.style.display = 'block';
+
+            // Render Chart.js chart
+            const ctx = document.getElementById('profitChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Invested Amount', 'Current Value'],
+                    datasets: [{
+                        label: 'Amount',
+                        data: [invested, current],
+                        backgroundColor: ['#1a73e8', '#34c759'],
+                        borderColor: ['#1557b0', '#2a9444'],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: `Amount (${currencySymbol(currency)})`
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Category'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Investment vs. Current Value'
+                        }
+                    }
+                }
+            });
+        }
+
+        // Calculate on button click
+        document.getElementById('calculate-btn').addEventListener('click', calculateProfitLoss);
+
+        // Calculate on Enter key
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                calculateProfitLoss();
+            }
+        });
+
+        // Reset form
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            document.getElementById('invested').value = '';
+            document.getElementById('current').value = '';
+            document.getElementById('currency').value = 'EUR';
+            document.getElementById('error').style.display = 'none';
+            document.getElementById('result').style.display = 'none';
+        });
+    </script>
+</body>
+</html>
